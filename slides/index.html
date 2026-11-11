@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>變分自編碼器 VAE：從「點」到「分布」</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+  <!-- 0. 封面 -->
+  <section class="cover">
+    <p class="kicker">深度生成模型 ・ 教學投影片</p>
+    <h1>變分自編碼器 VAE</h1>
+    <p class="subtitle">從「一個點」到「一團分布」：直觀、理論與動畫</p>
+    <p class="small">工業管理系</p>
+  </section>
+
+  <!-- 1. 學習目標 -->
+  <section>
+    <h2>學習目標與大綱</h2>
+    <ul>
+      <li class="fragment">為什麼自編碼器（AE）的潛在空間不適合拿來「生成」？</li>
+      <li class="fragment">VAE 如何讓潛在空間變得連續、有結構</li>
+      <li class="fragment">編碼器、解碼器的輸入、輸出與幾何意義</li>
+      <li class="fragment">理論篇：損失函數、KL 散度、ELBO、重參數化技巧</li>
+    </ul>
+    <p class="note fragment">先有直觀，再談數學。數學只是把直觀寫得更精確。</p>
+  </section>
+
+  <!-- ===================== PART I ===================== -->
+  <section class="part-divider">
+    <p class="kicker">Part I</p>
+    <h2>直觀理解</h2>
+  </section>
+
+  <!-- 2. 回顧 AE -->
+  <section>
+    <h2>回顧：自編碼器 AE</h2>
+    <div class="flow">
+      <div class="box">輸入影像<br><span class="sub">x</span></div>
+      <div class="arrow">→</div>
+      <div class="box enc">編碼器 f<br><span class="sub">神經網路</span></div>
+      <div class="arrow">→</div>
+      <div class="box latent">潛在向量 z<br><span class="sub">一個<b>確定的點</b></span></div>
+      <div class="arrow">→</div>
+      <div class="box dec">解碼器 g<br><span class="sub">神經網路</span></div>
+      <div class="arrow">→</div>
+      <div class="box">重建影像<br><span class="sub">x̂</span></div>
+    </div>
+    <p class="center fragment">目標：讓 x̂ 盡量接近 x</p>
+    <p class="center fragment">$$\mathcal{L}_{\text{AE}}=\lVert x-\hat x\rVert^2$$</p>
+  </section>
+
+  <!-- 3. AE 的問題 (demo) -->
+  <section>
+    <h2>AE 的問題：潛在空間沒有被組織</h2>
+    <p class="small">每張訓練圖都對應一個點（黑點）。點與點之間的空白，沒有任何約束。</p>
+    <div class="demo" data-demo="latent" data-start="ae"></div>
+    <div class="row">
+      <button data-action="sample">隨機取一個點並解碼</button>
+    </div>
+    <p class="small center">點擊畫布任一位置，判斷此處的解碼結果是否有意義。</p>
+  </section>
+
+  <!-- 4. 為什麼 -->
+  <section>
+    <h2>為什麼 AE 的潛在空間會「壞掉」？</h2>
+    <ul>
+      <li class="fragment"><b>目標只有「重建得好」</b>：AE 的損失只要求 x̂ ≈ x，沒有說 z 應該長什麼樣子。</li>
+      <li class="fragment"><b>點的位置是任意的</b>：不同圖的 z 可能擠在角落，中間留下大片空白。</li>
+      <li class="fragment"><b>鄰近的點不一定語意相近</b>：兩個點之間插值，可能落在空白區，解碼得到雜訊或怪圖。</li>
+      <li class="fragment"><b>我們不知道 z 的分布</b>：沒有 p(z)，就無法有意義地「隨機取樣」去生成新資料。</li>
+    </ul>
+    <p class="note fragment">結論：AE 是壓縮工具，不是生成模型。</p>
+  </section>
+
+  <!-- 5. VAE 核心想法 -->
+  <section>
+    <h2>VAE 的核心想法：把「一個點」換成「一團雲」</h2>
+    <ul>
+      <li class="fragment">編碼器不再輸出一個點，而是輸出一個<b>高斯分布</b>的參數：均值 <span class="m">μ</span> 與變異數 <span class="m">σ²</span></li>
+      <li class="fragment">訓練時，從 <span class="m">N(μ, σ²)</span> 取樣得到 z，再送進解碼器</li>
+      <li class="fragment">KL 散度把每團雲拉向標準常態 <span class="m">N(0, I)</span></li>
+      <li class="fragment">雲與雲互相重疊 → 潛在空間變得<b>連續</b>，取樣有意義</li>
+    </ul>
+    <div class="row fragment">
+      <p class="small">下一頁的動畫中，點會從 AE 狀態「變形」成 VAE 的雲。</p>
+    </div>
+  </section>
+
+  <!-- 6. AE → VAE 動畫 -->
+  <section>
+    <h2>從 AE 到 VAE：潛在空間的變化</h2>
+    <div class="demo" data-demo="latent" data-start="ae"></div>
+    <div class="row">
+      <button data-action="toggle">切換 AE / VAE</button>
+      <button data-action="sample">隨機取一個點並解碼</button>
+    </div>
+    <p class="small center">VAE 狀態下，雲與雲重疊，隨機取樣落在「有資料覆蓋」區域的機會明顯提高（上例約 2 倍）。</p>
+  </section>
+
+  <!-- 7. 編碼器 -->
+  <section>
+    <h2>編碼器：輸入與輸出</h2>
+    <table class="io">
+      <thead><tr><th></th><th>內容</th><th>維度（MNIST 例）</th></tr></thead>
+      <tbody>
+        <tr><td><b>輸入</b></td><td>一張影像 x</td><td>28×28 → 784 維向量</td></tr>
+        <tr><td><b>輸出 1</b></td><td>均值 μ(x)</td><td>d 維（例如 d = 2）</td></tr>
+        <tr><td><b>輸出 2</b></td><td>對數變異數 log σ²(x)</td><td>d 維</td></tr>
+      </tbody>
+    </table>
+    <p class="center fragment">$$z=\mu(x)+\sigma(x)\odot\varepsilon,\qquad \varepsilon\sim\mathcal N(0,I)$$</p>
+    <p class="small fragment">實作上輸出 log σ² 而非 σ²：這樣 σ² 一定為正，數值也較穩定。</p>
+    <p class="note fragment">幾何意義：輸入的每張圖，在潛在空間中對應一個<b>橢圓形的高斯分布</b>。</p>
+  </section>
+
+  <!-- 8. 解碼器 -->
+  <section>
+    <h2>解碼器：輸入與輸出</h2>
+    <table class="io">
+      <thead><tr><th></th><th>內容</th><th>說明</th></tr></thead>
+      <tbody>
+        <tr><td><b>輸入</b></td><td>潛在變數 z ∈ ℝ<sup>d</sup></td><td>從 q(z|x) 取樣而來</td></tr>
+        <tr><td><b>輸出</b></td><td>影像 x̂ = g(z)</td><td>是 p(x|z) 的<b>平均值</b></td></tr>
+      </tbody>
+    </table>
+    <p class="center fragment">$$p_\theta(x\mid z)=\mathcal N\big(x;\ \hat x(z),\ \sigma_x^2 I\big)$$</p>
+    <p class="note fragment">幾何意義：解碼器的每個輸出不是一張圖，而是<b>影像空間中的一團分布</b>，中心在 x̂(z)，半徑由 σ<sub>x</sub> 決定。</p>
+    <p class="small fragment">（若假設高斯似然，最大化 log p(x|z) 就等價於最小化 MSE，理論篇會說明。）</p>
+  </section>
+
+  <!-- 9. 完整流程的幾何意義 -->
+  <section>
+    <h2>整體流程的幾何意義</h2>
+    <div class="flow vertical-on-small">
+      <div class="box">影像空間<br><span class="sub">一張圖 x</span></div>
+      <div class="arrow">→</div>
+      <div class="box enc">編碼器<br><span class="sub">潛在空間中的一團雲 q(z|x)</span></div>
+      <div class="arrow">→</div>
+      <div class="box latent">取樣 z<br><span class="sub">雲中的一個點</span></div>
+      <div class="arrow">→</div>
+      <div class="box dec">解碼器<br><span class="sub">影像空間中的一團雲 p(x|z)</span></div>
+      <div class="arrow">→</div>
+      <div class="box">重建 x̂<br><span class="sub">該團雲的中心</span></div>
+    </div>
+    <table class="io fragment">
+      <thead><tr><th></th><th>輸入</th><th>輸出</th><th>在哪個空間</th></tr></thead>
+      <tbody>
+        <tr><td><b>編碼器</b></td><td>影像 x</td><td>分布 q(z|x)（以 μ, σ 描述）</td><td>從影像空間 → 潛在空間</td></tr>
+        <tr><td><b>解碼器</b></td><td>潛在點 z</td><td>分布 p(x|z)（以 x̂ 描述）</td><td>從潛在空間 → 影像空間</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 10. 中間層 z 是向量嗎 -->
+  <section>
+    <h2>中間層的 z 還是一個向量嗎？</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>自編碼器 AE</h3>
+        <p>z 是<b>確定性</b>的：同一張圖，每次都得到<b>同一個</b> z。</p>
+        <p class="small">z = f(x)</p>
+      </div>
+      <div class="card accent">
+        <h3>變分自編碼器 VAE</h3>
+        <p>z 是<b>隨機變數</b>：同一張圖，每次取樣得到<b>不同的</b> z。</p>
+        <p class="small">編碼器真正輸出的是 μ(x), σ(x)；z 是從分布抽出的一個樣本。</p>
+      </div>
+    </div>
+    <p class="center fragment">所以 z 仍是一個 d 維向量，但它的來源已經從「算出來」變成「抽出來」。</p>
+  </section>
+
+  <!-- 11. 動畫：流程 (manim) -->
+  <section>
+    <h2>動畫：VAE 的資料流（Manim）</h2>
+    <video class="anim" controls preload="metadata" src="media/vae_pipeline.mp4"></video>
+    <p class="small center">一張圖如何變成一團雲，取樣後再被還原成影像。</p>
+  </section>
+
+  <!-- ===================== PART II ===================== -->
+  <section class="part-divider">
+    <p class="kicker">Part II</p>
+    <h2>理論</h2>
+  </section>
+
+  <!-- 12. 生成模型目標 -->
+  <section>
+    <h2>生成模型的目標</h2>
+    <p>假設資料由潛在變數產生：</p>
+    <p class="center">$$z\sim p(z)=\mathcal N(0,I),\qquad x\sim p_\theta(x\mid z)$$</p>
+    <p class="fragment">目標：最大化資料的<b>邊際似然</b> <span class="m">log p<sub>θ</sub>(x)</span></p>
+    <p class="center fragment">$$p_\theta(x)=\int p_\theta(x\mid z)\,p(z)\,dz$$</p>
+    <p class="fragment"><b>困難</b>：這個積分要對所有可能的 z 積分，在高維度中無法計算。</p>
+    <p class="note fragment">解法：引入一個近似後驗 q<sub>φ</sub>(z|x)，也就是編碼器，用<b>變分推論</b>來逼近。</p>
+  </section>
+
+  <!-- 13. ELBO 推導 -->
+  <section>
+    <h2>ELBO：證據下界</h2>
+    <p class="center">$$\log p_\theta(x)=\text{ELBO}\;+\;D_{KL}\big(q_\phi(z\mid x)\,\|\,p_\theta(z\mid x)\big)$$</p>
+    <p class="center">$$\text{ELBO}=\mathbb E_{q_\phi(z\mid x)}\big[\log p_\theta(x\mid z)\big]-D_{KL}\big(q_\phi(z\mid x)\,\|\,p(z)\big)$$</p>
+    <ul>
+      <li class="fragment">最後一項 <span class="m">D<sub>KL</sub>(q ‖ p(z|x))</span> 永遠 <span class="m">≥ 0</span></li>
+      <li class="fragment">因此 <span class="m">log p(x) ≥ ELBO</span>，ELBO 是 log 證據（evidence）的<b>下界</b></li>
+      <li class="fragment">等號成立 ⇔ q(z|x) = p(z|x)，即編碼器完美地逼近真實後驗</li>
+    </ul>
+  </section>
+
+  <!-- 14. ELBO 的作用 -->
+  <section>
+    <h2>ELBO 在 VAE 中的作用</h2>
+    <ul>
+      <li class="fragment">我們無法直接算 log p(x)，但可以算 ELBO</li>
+      <li class="fragment">最大化 ELBO 會同時做兩件事：
+        <ol>
+          <li>把 log p(x) 推大（模型解釋資料的能力變好）</li>
+          <li>把 q(z|x) 拉向真實後驗（縮小下界與真值的差距）</li>
+        </ol>
+      </li>
+      <li class="fragment">訓練時對整個資料集最大化 ELBO，實務上用<b>小批次隨機梯度</b>與<b>單一樣本</b>估計期望值</li>
+    </ul>
+    <p class="note fragment">名稱中的 Evidence = log p(x)，指的是「資料的對數似然」；Lower Bound 指它是真值的下界。</p>
+  </section>
+
+  <!-- 15. 損失函數組成 -->
+  <section>
+    <h2>損失函數：重建 + KL</h2>
+    <p class="center">$$\mathcal L(x)=\underbrace{-\,\mathbb E_{q_\phi(z|x)}\!\big[\log p_\theta(x\mid z)\big]}_{\text{重建項}}\;+\;\underbrace{D_{KL}\big(q_\phi(z\mid x)\,\|\,p(z)\big)}_{\text{正則項（KL）}}\;=\;-\text{ELBO}$$</p>
+    <ul>
+      <li class="fragment"><b>重建項</b>：解碼器能不能把 z 還原成 x</li>
+      <li class="fragment"><b>KL 項</b>：編碼器輸出的分布要不要貼近先驗 N(0, I)</li>
+      <li class="fragment">最小化 <span class="m">𝓛</span> ＝ 最大化 ELBO</li>
+    </ul>
+  </section>
+
+  <!-- 16. 重建項 = MSE -->
+  <section>
+    <h2>重建項為什麼是 MSE？</h2>
+    <p>假設解碼器輸出高斯分布：</p>
+    <p class="center">$$-\log \mathcal N(x;\hat x,\sigma_x^2 I)=\frac{1}{2\sigma_x^2}\,\lVert x-\hat x\rVert^2+\text{const}$$</p>
+    <ul>
+      <li class="fragment">因此重建項 ∝ <b>MSE</b>（像素差的平方和）</li>
+      <li class="fragment">σ<sub>x</sub> 固定時，它只決定 MSE 的<b>權重</b></li>
+      <li class="fragment">實務上常寫成：<span class="m">𝓛 = MSE + β · KL</span>（β 為權重，β-VAE 的想法）</li>
+    </ul>
+    <p class="note fragment">MSE 與 KL 的相對大小很重要：權重不同，模型會偏向「重建得準」或「潛在空間整齊」。</p>
+  </section>
+
+  <!-- 17. KL 閉式解 -->
+  <section>
+    <h2>KL 散度：閉式解</h2>
+    <p>當 q(z|x) = N(μ, diag(σ²))、p(z) = N(0, I) 時，KL 有解析解：</p>
+    <p class="center">$$D_{KL}=-\frac12\sum_{j=1}^{d}\Big(1+\log\sigma_j^2-\mu_j^2-\sigma_j^2\Big)$$</p>
+    <ul>
+      <li class="fragment">逐維度看：<span class="m">½(μ² + σ² − 1 − log σ²)</span></li>
+      <li class="fragment">KL ≥ 0，且等於 0 的<b>唯一</b>條件是 μ = 0、σ = 1</li>
+      <li class="fragment">因為是閉式解，訓練時不需要用取樣去估計 KL</li>
+    </ul>
+  </section>
+
+  <!-- 18. KL 幾何意義 (demo) -->
+  <section>
+    <h2>KL 的幾何意義：把雲拉回原點</h2>
+    <p class="small center">拖動 μ 與 σ：橘色為 N(μ, σ²)，灰色為先驗 N(0, 1)。</p>
+    <div class="demo narrow" data-demo="kl"></div>
+    <div class="two-col small">
+      <div class="card">
+        <p><span class="m">μ²</span> 項：均值離原點越遠，懲罰越大 → 雲不會飛走</p>
+      </div>
+      <div class="card">
+        <p><span class="m">σ² − log σ² − 1</span> 項：σ 趨近 0 會被大力懲罰，太大也會懲罰 → 雲保持適中大小</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 19. 拉扯 -->
+  <section>
+    <h2>重建與 KL 的拉扯</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>重建項想要</h3>
+        <ul class="small">
+          <li>σ 小：定位精確</li>
+          <li>不同圖的 μ 分開：可區分</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <h3>KL 項想要</h3>
+        <ul class="small">
+          <li>σ ≈ 1：雲有適中大小</li>
+          <li>μ ≈ 0：雲集中在原點附近</li>
+        </ul>
+      </div>
+    </div>
+    <p class="center fragment">平衡後：雲有一定大小、彼此重疊，且仍保有資訊 → 連續、可取樣。</p>
+    <div class="two-col small fragment">
+      <div class="card">
+        <h3>只有重建</h3>
+        <p>σ → 0，雲退化成點，變回 AE，潛在空間出現空洞。</p>
+      </div>
+      <div class="card">
+        <h3>只有 KL</h3>
+        <p>所有雲都變成 N(0, I)，z 不含任何資訊（後驗崩潰，posterior collapse），解碼結果都是同一張平均圖。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 20. 動畫：KL 與 ELBO (manim) -->
+  <section>
+    <h2>動畫：KL 與重建的拉扯（Manim）</h2>
+    <video class="anim" controls preload="metadata" src="media/kl_tradeoff.mp4"></video>
+    <p class="small center">重建想讓雲縮小、分開；KL 想讓雲變大、靠攏。兩者的平衡決定了潛在空間的樣子。</p>
+  </section>
+
+  <!-- 21. 重參數化問題 -->
+  <section>
+    <h2>重參數化技巧：問題在哪？</h2>
+    <p>訓練需要對 ELBO 的期望值求梯度，而期望值中包含一個<b>抽樣動作</b>：</p>
+    <p class="center">$$z\sim\mathcal N(\mu_\phi(x),\sigma_\phi^2(x))$$</p>
+    <ul>
+      <li class="fragment">「抽樣」是隨機節點，梯度無法穿過它</li>
+      <li class="fragment">因此 loss 無法反傳到 μ, σ，編碼器學不到東西</li>
+    </ul>
+    <p class="note fragment">我們需要一個「能反傳」的寫法，同時保持 z 的分布不變。</p>
+  </section>
+
+  <!-- 22. 重參數化解法 + demo -->
+  <section>
+    <h2>重參數化技巧：把隨機性移走</h2>
+    <p class="center">$$z=\mu+\sigma\odot\varepsilon,\qquad \varepsilon\sim\mathcal N(0,I)$$</p>
+    <p class="small center">隨機性只在 ε 上（不含參數）→ 給定 ε 後，z 是 μ、σ 的確定函數，梯度可以反傳：\(\frac{\partial z}{\partial\mu}=1,\ \frac{\partial z}{\partial\sigma}=\varepsilon\)</p>
+    <p class="small center">左：固定的標準常態樣本 ε；右：z = μ + σ⊙ε。移動 μ、σ 時，ε 不變。</p>
+    <div class="demo narrow" data-demo="reparam"></div>
+    <div class="row">
+      <button data-action="resample">重新取樣 ε</button>
+    </div>
+  </section>
+
+  <!-- 23. 完整 VAE 與程式 -->
+  <section>
+    <h2>完整的 VAE 訓練步驟</h2>
+    <div class="two-col">
+      <ol class="small">
+        <li>取一個 mini-batch 的 x</li>
+        <li>編碼器輸出 μ(x), log σ²(x)</li>
+        <li>取 ε ~ N(0, I)，計算 z = μ + σ⊙ε（重參數化）</li>
+        <li>解碼器輸出 x̂ = g(z)</li>
+        <li>損失 = 重建項（MSE）+ β · KL（閉式解）</li>
+        <li>反向傳播，同時更新 φ（編碼器）與 θ（解碼器）</li>
+      </ol>
+      <pre><code class="language-python">mu, logvar = encoder(x)
+std = torch.exp(0.5 * logvar)
+eps = torch.randn_like(std)
+z = mu + std * eps                  # 重參數化
+x_hat = decoder(z)
+
+recon = F.mse_loss(x_hat, x, reduction='sum')
+kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+loss = recon + beta * kl</code></pre>
+    </div>
+    <p class="small center fragment">生成新資料時：z ~ N(0, I) → 解碼器 → x̂。因為 KL 讓所有雲貼近 N(0, I)，這樣取樣是有意義的。</p>
+  </section>
+
+  <!-- 24. 動畫：ELBO 與取樣 (manim) -->
+  <section>
+    <h2>動畫：為什麼從先驗取樣能生成？（Manim）</h2>
+    <video class="anim" controls preload="metadata" src="media/elbo_sampling.mp4"></video>
+    <p class="small center">訓練後，編碼器的雲填滿了先驗 N(0, I) 的主要區域；從先驗取樣，就會落在有意義的位置。</p>
+  </section>
+
+  <!-- 25. 總結 -->
+  <section>
+    <h2>總結</h2>
+    <ul>
+      <li class="fragment"><b>AE → VAE</b>：從「點」變成「分布」，潛在空間變得連續</li>
+      <li class="fragment"><b>編碼器</b>：影像 → 潛在分布（μ, σ）；<b>解碼器</b>：潛在點 z → 影像分布（x̂）</li>
+      <li class="fragment"><b>損失</b>：重建（MSE）+ KL，來自 ELBO 的負值</li>
+      <li class="fragment"><b>KL</b>：把雲拉向 N(0, I)，防止退化，讓取樣有意義</li>
+      <li class="fragment"><b>重參數化</b>：z = μ + σ⊙ε，讓梯度穿過隨機節點</li>
+    </ul>
+    <p class="small fragment">延伸：β-VAE（解開的表示）、條件式 VAE（CVAE）、VQ-VAE、與擴散模型的關係。</p>
+  </section>
+
+  <!-- 26. 參考資料 -->
+  <section>
+    <h2>參考影片</h2>
+    <ul class="small">
+      <li><a href="https://www.youtube.com/watch?v=qJeaCHQ1k2w&amp;t=619s">https://www.youtube.com/watch?v=qJeaCHQ1k2w</a></li>
+      <li><a href="https://www.youtube.com/watch?v=HBYQvKlaE0A&amp;t=778s">https://www.youtube.com/watch?v=HBYQvKlaE0A</a></li>
+      <li><a href="https://www.youtube.com/watch?v=utAxCAsWM-c&amp;t=300s">https://www.youtube.com/watch?v=utAxCAsWM-c</a></li>
+      <li><a href="https://www.youtube.com/watch?v=Dg0YcABQ_aU">https://www.youtube.com/watch?v=Dg0YcABQ_aU</a></li>
+    </ul>
+    <p class="small">原始論文：Kingma &amp; Welling, <i>Auto-Encoding Variational Bayes</i> (ICLR 2014)</p>
+  </section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="assets/demos.js"></script>
+<script>
+  const mathOpts = {
+    delimiters: [
+      { left: '$$', right: '$$', display: true },
+      { left: '\\(', right: '\\)', display: false }
+    ],
+    throwOnError: false
+  };
+  Reveal.initialize({
+    width: 1280,
+    height: 720,
+    margin: 0.06,
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    controls: true,
+    progress: true
+  }).then(() => {
+    renderMathInElement(document.querySelector('.reveal'), mathOpts);
+    VAEDemos.init();
+  });
+  Reveal.on('ready', () => {});
+</script>
+</body>
+</html>
