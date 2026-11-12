@@ -1,0 +1,211 @@
+/* ---------- Design tokens ---------- */
+:root {
+  --bg-1: #0b1220;
+  --bg-2: #13203a;
+  --ink: #e5e9f2;
+  --ink-soft: #9fb0c8;
+  --accent: #5eead4;      /* 潛在空間 / 雲 */
+  --orange: #fb923c;      /* 分布 q(z|x) 與 σ */
+  --purple: #a78bfa;      /* KL */
+  --gray: #64748b;        /* 先驗 N(0, I) */
+  --card: rgba(255, 255, 255, 0.05);
+  --line: rgba(255, 255, 255, 0.14);
+  --font-cjk: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", sans-serif;
+}
+
+/* ---------- Base ---------- */
+.reveal {
+  font-family: var(--font-cjk);
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.reveal .slides > section { background: none; }
+body { background: var(--bg-1); }
+.reveal .slide-background-content { background: linear-gradient(160deg, var(--bg-2), var(--bg-1)); }
+
+.reveal h1, .reveal h2, .reveal h3 {
+  font-family: var(--font-cjk);
+  color: var(--ink);
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.reveal h2 { font-size: 1.25em; margin-bottom: 0.45em; color: var(--accent); }
+.reveal h3 { font-size: 0.95em; margin-bottom: 0.3em; }
+.reveal p, .reveal li { font-size: 0.85em; line-height: 1.5; }
+.reveal ul, .reveal ol { margin-left: 1.1em; }
+.reveal li { margin-bottom: 0.25em; }
+.reveal ol ol { font-size: 0.95em; }
+.reveal b { color: #fff; font-weight: 700; }
+.reveal a { color: var(--accent); }
+.reveal .small { font-size: 0.68em; color: var(--ink-soft); }
+.reveal .center { text-align: center; }
+.reveal .note {
+  border-left: 4px solid var(--accent);
+  padding: 0.3em 0.8em;
+  background: rgba(94, 234, 212, 0.08);
+  text-align: left;
+  font-size: 0.78em;
+  margin-top: 0.6em;
+}
+.reveal .m { color: var(--orange); font-family: "KaTeX_Math", "Times New Roman", serif; }
+.reveal .katex { color: var(--ink); font-size: 1.05em; }
+.reveal .katex-display { margin: 0.4em 0; }
+.reveal code, .reveal pre { font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace; }
+.reveal pre { width: 100%; box-shadow: none; }
+.reveal pre code {
+  background: #0a0f1c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.5em;
+  padding: 0.8em 1em;
+  max-height: 420px;
+  color: #cbd5e1;
+}
+
+/* ---------- Cover & dividers ---------- */
+.reveal section.cover h1 { font-size: 2.1em; color: #fff; margin: 0.2em 0; }
+.reveal section.cover .subtitle { font-size: 0.9em; color: var(--accent); }
+.reveal .kicker {
+  font-size: 0.55em !important;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--orange) !important;
+  margin: 0 0 0.5em;
+}
+.reveal section.part-divider h2 { font-size: 2em; color: #fff; }
+
+/* ---------- Flow diagrams ---------- */
+.flow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.4em;
+  margin: 0.6em 0 0.8em;
+}
+.flow .box {
+  flex: 1 1 0;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 0.6em 0.5em;
+  font-size: 0.62em;
+  line-height: 1.35;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.flow .box .sub { color: var(--ink-soft); font-size: 0.9em; }
+.flow .box.enc { border-color: var(--orange); }
+.flow .box.dec { border-color: var(--purple); }
+.flow .box.latent { border-color: var(--accent); }
+.flow .arrow { align-self: center; font-size: 1.3em; color: var(--ink-soft); }
+
+/* ---------- Tables ---------- */
+table.io {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.62em;
+  margin: 0.4em 0;
+}
+table.io th, table.io td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.45em 0.6em;
+  text-align: left;
+}
+table.io th { color: var(--accent); font-weight: 700; }
+
+/* ---------- Cards & columns ---------- */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1em;
+  align-items: start;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 0.7em 0.9em;
+}
+.card.accent { border-color: var(--accent); }
+.card h3 { color: var(--accent); }
+.card.accent h3 { color: var(--accent); }
+
+/* ---------- Buttons & controls ---------- */
+.row {
+  display: flex;
+  gap: 0.6em;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.5em 0;
+}
+.reveal button {
+  font-family: var(--font-cjk);
+  font-size: 0.6em;
+  background: transparent;
+  color: var(--ink);
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.4em 1.1em;
+  cursor: pointer;
+}
+.reveal button:hover { background: rgba(94, 234, 212, 0.15); }
+.reveal button:focus-visible { outline: 2px solid var(--orange); }
+
+/* ---------- Interactive demos ---------- */
+.demo {
+  width: 100%;
+  max-width: 520px;
+  margin: 0.2em auto;
+}
+.demo.narrow { max-width: 440px; }
+.demo .demo-controls label span { white-space: nowrap; }
+.demo canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  background: #0a1426;
+  border: 1px solid var(--line);
+  touch-action: none;
+}
+.demo .demo-controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.2em 1.2em;
+  margin-top: 0.4em;
+  font-size: 0.55em;
+  color: var(--ink-soft);
+}
+.demo .demo-controls label { display: flex; align-items: center; gap: 0.5em; }
+.demo .demo-controls input[type="range"] { flex: 1; accent-color: var(--orange); }
+.demo .readout {
+  text-align: center;
+  font-size: 0.6em;
+  min-height: 1.4em;
+  margin-top: 0.3em;
+  color: var(--ink);
+}
+
+/* ---------- Videos (manim) ---------- */
+.reveal video.anim {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  max-height: 480px;
+  margin: 0.3em auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 760px) {
+  .flow { flex-direction: column; }
+  .flow .arrow { transform: rotate(90deg); }
+  .two-col { grid-template-columns: 1fr; }
+  .demo .demo-controls { grid-template-columns: 1fr; }
+}
